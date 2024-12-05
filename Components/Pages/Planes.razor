@@ -1,0 +1,81 @@
+@page "/planes"
+@rendermode InteractiveServer
+@using InterviewProject.Data
+@using InterviewProject.Models
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<InterviewProject.Data.AppDbContext> DbFactory
+
+<h1>Manage Planes</h1>
+
+<h2 class="mt-3">Create New Plane</h2>
+<EditForm method="post" Model="newPlane" OnValidSubmit="AddPlane" FormName="add" Enhance>
+    <DataAnnotationsValidator />
+    <div class="row">
+        <div class="col-6">
+            <label for="id-num">Identification Number</label>
+            <ValidationMessage For="() => newPlane.IdentificationNumber" class="text-danger" />
+            <InputNumber @bind-value="newPlane.IdentificationNumber" id="id-num" placeholder="Plane Identification Number" class="form-control" />
+        </div>
+        <div class="col-6">
+            <label for="max-weight">Max Weight (kg)</label>
+            <ValidationMessage For="() => newPlane.MaxWeight" class="text-danger" />
+            <InputNumber @bind-value="newPlane.MaxWeight" id="max-weight" placeholder="Max Weight" class="form-control" />
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary mt-3">Add</button>
+</EditForm>
+
+<h2 class="mt-3">Planes</h2>
+<table class="table table-striped table-hover">
+    <thead>
+        <tr>
+            <th scope="col">Identification Number</th>
+            <th scope="col">Max Weight</th>
+            <th scope="col">Used Weight</th>
+            <th scope="col">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var plane in planes)
+        {
+            <tr>
+                <td>@plane.IdentificationNumber</td>
+                <td>@plane.MaxWeight</td>
+                <td>@plane.Packages.Sum(p => p.Weight)</td>
+                <td>
+                    <a href="@($"planes/detail?id={plane.Id}")"><button class="btn btn-secondary">Detail</button></a>
+                    <button @onclick="() => RemovePlane(plane)" class="btn btn-danger">Remove</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    [SupplyParameterFromForm]
+    private Plane newPlane { get; set; } = new();
+
+    private AppDbContext context = default!;
+    private IQueryable<Plane> planes => context.Planes.Include(p => p.Packages);
+        
+
+    protected override void OnInitialized()
+    {
+        context = DbFactory.CreateDbContext();
+    }
+
+    private async Task AddPlane()
+    {
+        context.Planes.Add(newPlane);
+        await context.SaveChangesAsync();
+        newPlane = new();
+        this.StateHasChanged();
+    }
+
+    private async Task RemovePlane(Plane plane)
+    {
+        context.Planes.Remove(plane);
+        await context.SaveChangesAsync();
+        this.StateHasChanged();
+    }
+}

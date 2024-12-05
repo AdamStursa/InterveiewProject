@@ -1,0 +1,172 @@
+@page "/warehouse"
+@rendermode InteractiveServer
+@using InterviewProject.Data
+@using InterviewProject.Models
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@inject IDbContextFactory<InterviewProject.Data.AppDbContext> DbFactory
+
+<h1>Manage Packages</h1>
+
+<h2 class="mt-3">Create New Package</h2>
+<EditForm method="post" Model="newPackage" OnValidSubmit="AddPackage" FormName="add" Enhance>
+    <DataAnnotationsValidator />
+    <div class="row">
+        <div class="col-6">
+            <ValidationMessage For="() => newPackage.Description" class="text-danger" />
+            <label for="desc">Package Description</label>
+            <InputText @bind-value="newPackage.Description" id="desc" placeholder="Small fragile package" class="form-control" />
+        </div>
+        <div class="col-6">
+            <ValidationMessage For="() => newPackage.Weight" class="text-danger" />
+            <label for="weight">Package Weight (kg)</label>
+            <InputNumber @bind-value="newPackage.Weight" id="weight" placeholder="Package Weight" class="form-control" />
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary mt-3">Add</button>
+</EditForm>
+
+<h2 class="mt-3">Package list</h2>
+
+<QuickGrid Items="packages" Class="table table-striped" Pagination="pagination" @ref="grid">
+    <PropertyColumn Property="@(p => p.Description)" Title="Description" />
+    <PropertyColumn Property="@(p => p.Weight)" Title="Weight" Sortable="true" />
+    <PropertyColumn Property="@(p => p.CreatedDate)" Title="Date Created" Sortable="true" />
+    <TemplateColumn Title="Actions">
+        <button class="btn btn-danger btn-sm" @onclick="() => RemovePackage(context.Id)">Remove</button>
+        <button class="btn btn-primary btn-sm" @onclick="() => AssignToPlane(context)">Assign</button>
+    </TemplateColumn>
+</QuickGrid>
+<div class="page-buttons fs-5 d-flex align-items-center justify-content-end">
+    Page:
+    @if (pagination.TotalItemCount.HasValue)
+    {
+        for (var pageIndex = 0; pageIndex <= pagination.LastPageIndex; pageIndex++)
+        {
+            var capturedIndex = pageIndex;
+            <button @onclick="@(() => GoToPageAsync(capturedIndex))" class="@(PageClass(pageIndex)) btn fs-6 mx-1" aria-label="Go to page @(pageIndex + 1)">
+                @(pageIndex + 1)
+            </button>
+        }
+    }
+</div>
+
+@if (selectedPackage != null)
+{
+<div class="modal">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="staticBackdropLabel">Select plane</h5>
+            </div>
+                <div class="modal-body">
+                    @if (planes != null && planes.Count() > 0)
+                    {
+                    <InputRadioGroup @bind-Value="selectedPlaneId">
+                        @foreach (var plane in planes)
+                        {
+                            <div>
+                                <InputRadio id="@plane.IdentificationNumber" Value="@plane.Id" class="mx-2 mb-auto"/>
+                                <label for="@plane.IdentificationNumber">
+                                        <span class="w-100">@plane.IdentificationNumber</span>
+                                        <span class="text-muted text-small">(Weight:@plane.getTotalWeight()/@plane.MaxWeight)</span>
+                                </label>
+                            </div>
+                        }
+                    </InputRadioGroup>
+                    }
+                    else
+                    {
+                        <p class="text-danger">No available planes</p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="@(() => ResetAssignment())">Close</button>
+                    <button type="submit" class="btn btn-primary" @onclick="@(() => ConfirmAssignment())">Add to plane</button>
+                </div>
+        </div>
+    </div>
+</div>
+}
+@code {
+    [SupplyParameterFromForm]
+    private Package newPackage { get; set; } = new();
+
+    private AppDbContext context = default!;
+    PaginationState pagination = new PaginationState { ItemsPerPage = 10 };
+
+    private IQueryable<Package> packages => context.Set<Package>().Where(p => p.Plane == null);
+    QuickGrid<Package> grid = default!;
+    private IEnumerable<Plane> planes = new List<Plane>();
+        
+    private Package? selectedPackage = null;
+    private int? selectedPlaneId = null;
+
+    protected override void OnInitialized()
+    {
+        context = DbFactory.CreateDbContext();
+        pagination.TotalItemCountChanged += (sender, eventArgs) => StateHasChanged();
+    }
+
+    private async Task AddPackage()
+    {
+        newPackage.CreatedDate = DateTime.UtcNow; // Set the created date
+        context.Packages.Add(newPackage);
+        newPackage = new();
+        await context.SaveChangesAsync();
+        await grid.RefreshDataAsync();
+    }
+
+    private async Task RemovePackage(int id)
+    {
+        var package = await context.Packages.FindAsync(id);
+        if (package != null)
+        {
+            context.Packages.Remove(package);
+            await context.SaveChangesAsync();
+            await grid.RefreshDataAsync();
+        }
+    }
+
+    private void AssignToPlane(Package package)
+    {
+        selectedPackage = package;
+        planes = context.Planes.Include(p => p.Packages).Where(plane => plane.MaxWeight > plane.Packages.Sum(package => package.Weight)+selectedPackage.Weight || !plane.Packages.Any());
+        this.StateHasChanged();
+    }
+
+    private async Task ConfirmAssignment()
+    {
+        System.Console.WriteLine(selectedPackage?.Id);
+        System.Console.WriteLine(selectedPlaneId);
+        if (selectedPackage != null && selectedPlaneId != null)
+        {
+            var selectedPlane = context.Planes.Include(p => p.Packages).First(p => p.Id == selectedPlaneId);
+            if(selectedPlane != null && selectedPlane.getTotalWeight() + selectedPackage.Weight <= selectedPlane.MaxWeight)
+            {
+                selectedPackage.Plane = selectedPlane;
+                context.Update(selectedPackage);
+                await context.SaveChangesAsync();
+            }
+
+            ResetAssignment();
+        }
+    }
+
+    private void ResetAssignment(){
+        selectedPackage = null;
+        selectedPlaneId = null;
+        this.StateHasChanged();
+    }
+
+    private async Task GoToPageAsync(int pageIndex)
+    {
+        await pagination.SetCurrentPageIndexAsync(pageIndex);
+    }
+
+    private string PageClass(int index){
+        return pagination.CurrentPageIndex == index ? "btn-primary" : "btn-secondary";
+    }
+
+}
+
