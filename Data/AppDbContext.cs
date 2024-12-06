@@ -13,9 +13,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options): DbCont
 	
 	protected override void OnModelCreating(ModelBuilder modelBuilder)
 	{
+		// add unique to identification number
 		modelBuilder.Entity<Plane>()
 			.HasIndex(p => p.IdentificationNumber)
 			.IsUnique();
+
+		// specific for sqlite db
 		modelBuilder.Entity<Package>()
 			.Property(e => e.Weight)
 			.HasConversion<double>();

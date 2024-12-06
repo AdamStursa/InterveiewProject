@@ -66,14 +66,18 @@
 
     private async Task AddPlane()
     {
+        // save the plane to db
         context.Planes.Add(newPlane);
         await context.SaveChangesAsync();
+
+        // reset form
         newPlane = new();
         this.StateHasChanged();
     }
 
     private async Task RemovePlane(Plane plane)
     {
+        // remove the plane from db
         context.Planes.Remove(plane);
         await context.SaveChangesAsync();
         this.StateHasChanged();

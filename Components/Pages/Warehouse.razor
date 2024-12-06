@@ -110,8 +110,11 @@
 
     private async Task AddPackage()
     {
-        newPackage.CreatedDate = DateTime.UtcNow; // Set the created date
+        // Set the created date and save to db
+        newPackage.CreatedDate = DateTime.UtcNow;
         context.Packages.Add(newPackage);
+
+        // reset the form and redraw the grid
         newPackage = new();
         await context.SaveChangesAsync();
         await grid.RefreshDataAsync();
@@ -120,6 +123,7 @@
     private async Task RemovePackage(int id)
     {
         var package = await context.Packages.FindAsync(id);
+        // check the packeg is valid and redraw the grid
         if (package != null)
         {
             context.Packages.Remove(package);
@@ -131,16 +135,17 @@
     private void AssignToPlane(Package package)
     {
         selectedPackage = package;
-        planes = context.Planes.Include(p => p.Packages).Where(plane => plane.MaxWeight > plane.Packages.Sum(package => package.Weight)+selectedPackage.Weight || !plane.Packages.Any());
+        // retrive planes selected package can fit onto
+        planes = context.Planes.Include(p => p.Packages)
+                        .Where(plane => plane.MaxWeight > plane.Packages.Sum(package => package.Weight)+selectedPackage.Weight || !plane.Packages.Any());
         this.StateHasChanged();
     }
 
     private async Task ConfirmAssignment()
     {
-        System.Console.WriteLine(selectedPackage?.Id);
-        System.Console.WriteLine(selectedPlaneId);
         if (selectedPackage != null && selectedPlaneId != null)
         {
+            // retrive the selected plan and check the package can fit, then add it to the plane
             var selectedPlane = context.Planes.Include(p => p.Packages).First(p => p.Id == selectedPlaneId);
             if(selectedPlane != null && selectedPlane.getTotalWeight() + selectedPackage.Weight <= selectedPlane.MaxWeight)
             {
@@ -149,6 +154,7 @@
                 await context.SaveChangesAsync();
             }
 
+            // reset package assignment values
             ResetAssignment();
         }
     }

@@ -21,6 +21,7 @@ public class Plane
 	
 	public virtual ICollection<Package> Packages { get; set; } = new List<Package>();
 	
+	// calc slef total weight
 	public decimal getTotalWeight(){
 		return this.Packages.Sum(p => p.Weight);
 	}

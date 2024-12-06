@@ -64,6 +64,7 @@
     protected override void OnInitialized()
     {
         context = DbFactory.CreateDbContext();
+        // get plane based on the id
         var p = context.Planes.Include(p => p.Packages).FirstOrDefault(p => p.Id == Id);
 
         // redirect to planes list if plane not found
@@ -72,6 +73,7 @@
         else
             Plane = p;
 
+        // create edit context for cusm validation purpose
         editContext = new(Plane);
         editContext.OnValidationRequested += HandleValidationRequested;
         messageStore = new(editContext);
@@ -81,9 +83,9 @@
     {
         messageStore?.Clear();
 
-        // Custom validation logic
-        System.Console.WriteLine("Validate");
+        // get plane packages
         IEnumerable<Package> packages = context.Packages.Where(p => p.Plane == Plane);
+        // check total wight does not exceed the new max weight
         if (Plane.MaxWeight < packages.Sum(p => p.Weight))
         {
             messageStore?.Add(() => Plane.MaxWeight, "Max weight cannot be lower than current total weight");
@@ -99,6 +101,7 @@
 
     private async Task RemoveFromPlane(Package package)
     {
+        // check the package really belongs to the plane and remove it
         if(package.Plane != null && package.Plane.Id == Plane.Id)
         {
             package.Plane = null;
